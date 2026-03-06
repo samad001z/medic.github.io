@@ -1,10 +1,10 @@
 // MedGuard AI - Main Application Logic
 
-// Configuration - Updated for backend API
+// Configuration
 const CONFIG = {
-    API_ENDPOINT: '/api/triage',  // Backend endpoint (uses relative path)
+    GEMINI_API_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
     MAX_RETRIES: 3,
-    RETRY_DELAY: 2000
+    RETRY_DELAY: 2000,
 };
 
 // System Prompt for Gemini - Engineered for precise extraction and classification
@@ -83,6 +83,11 @@ async function handleScreenPatient() {
         return;
     }
 
+    if (!CONFIG.GEMINI_API_KEY || CONFIG.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
+        displayError('❌ ERROR: Gemini API key not configured. Update CONFIG.GEMINI_API_KEY in app.js');
+        return;
+    }
+
     // Show loading state
     screenBtn.disabled = true;
     loadingSpinner.classList.remove('hidden');
@@ -90,8 +95,8 @@ async function handleScreenPatient() {
     resultPanel.innerHTML = '';
 
     try {
-        // Call backend API
-        const response = await callTriageAPI(intakeText);
+        // Call Gemini API
+        const response = await callGeminiAPI(intakeText);
         
         // Parse JSON response
         const patientData = parseJsonResponse(response);
@@ -122,24 +127,38 @@ async function handleScreenPatient() {
 }
 
 // Call Gemini API with retry logic
-// Call backend Triage API (secure - API key is on backend)
-async function callTriageAPI(intakeText, retryCount = 0) {
+async function callGeminiAPI(intakeText, retryCount = 0) {
+    const payload = {
+        contents: [
+            {
+                parts: [
+                    {
+                        text: `${SYSTEM_PROMPT}\n\nPatient Intake Record:\n${intakeText}`
+                    }
+                ]
+            }
+        ],
+        generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 2000,
+            responseMimeType: "application/json"
+        }
+    };
+
     try {
-        const response = await fetch(CONFIG.API_ENDPOINT, {
+        const response = await fetch(`${CONFIG.GEMINI_API_ENDPOINT}?key=${CONFIG.GEMINI_API_KEY}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                patientIntake: `${SYSTEM_PROMPT}\n\nPatient Intake Record:\n${intakeText}`
-            })
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-            let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+            let errorMessage = `Gemini API Error: ${response.status} ${response.statusText}`;
             try {
                 const error = await response.json();
-                errorMessage = `API Error: ${error.error || errorMessage}`;
+                errorMessage = `Gemini API Error: ${error.error?.message || errorMessage}`;
             } catch (e) {
                 // Response not JSON, use statusText
             }
@@ -148,22 +167,29 @@ async function callTriageAPI(intakeText, retryCount = 0) {
 
         const data = await response.json();
         
-        // Convert data to JSON string for parsing
-        return JSON.stringify(data);
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            throw new Error('Invalid API response: missing candidates or content structure');
+        }
+        
+        if (!data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+            throw new Error('Invalid API response: missing parts');
+        }
+
+        const responseText = data.candidates[0].content.parts[0].text;
+        if (!responseText) {
+            throw new Error('API returned empty response');
+        }
+
+        return responseText;
 
     } catch (error) {
         if (retryCount < CONFIG.MAX_RETRIES) {
-            console.log(`Retry ${retryCount + 1}/${CONFIG.MAX_RETRIES} after ${CONFIG.RETRY_DELAY}ms: ${error.message}`);
+            console.log(`Retry ${retryCount + 1}/${CONFIG.MAX_RETRIES} after ${CONFIG.RETRY_DELAY}ms`);
             await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
-            return callTriageAPI(intakeText, retryCount + 1);
+            return callGeminiAPI(intakeText, retryCount + 1);
         }
         throw error;
     }
-}
-
-// Legacy function name - kept for compatibility
-async function callGeminiAPI(intakeText, retryCount = 0) {
-    return callTriageAPI(intakeText, retryCount);
 }
 
 // Parse JSON from response (handles markdown code fences and edge cases)
@@ -340,7 +366,8 @@ function loadDashboard() {
     const dashboardContainer = document.getElementById('dashboardContainer');
 
     try {
-        // Get all patient records ordered by timestamp (no composite index needed)
+        // Set up real-time listener
+        // Note: Order by timestamp first (single field), then filter in memory
         let query = window.firebaseDB.db.collection('patients').orderBy('timestamp', 'desc');
 
         // Real-time listener with onSnapshot
@@ -348,12 +375,10 @@ function loadDashboard() {
             (snapshot) => {
                 if (snapshot.empty) {
                     dashboardContainer.innerHTML = '<p class="placeholder">No records found. Screen a patient to begin.</p>';
-                    updateChart(0, 0, 0);
-                    updateStats(0, 0, 0);
                     return;
                 }
 
-                const records = [];
+                let records = [];
                 snapshot.forEach((doc) => {
                     records.push({
                         id: doc.id,
@@ -361,13 +386,17 @@ function loadDashboard() {
                     });
                 });
 
-                // Filter client-side to avoid composite index requirement
-                let filteredRecords = records;
+                // Apply status filter in memory if needed
                 if (currentFilter !== 'all') {
-                    filteredRecords = records.filter(r => r.status === currentFilter);
+                    records = records.filter(record => record.status === currentFilter);
                 }
 
-                renderDashboard(filteredRecords);
+                if (records.length === 0) {
+                    dashboardContainer.innerHTML = '<p class="placeholder">No records found for the selected filter.</p>';
+                    return;
+                }
+
+                renderDashboard(records);
             },
             (error) => {
                 console.error('Firestore listener error:', error);
@@ -381,109 +410,17 @@ function loadDashboard() {
     }
 }
 
-// Render dashboard cards and update analytics
+// Render dashboard cards
 function renderDashboard(records) {
     const dashboardContainer = document.getElementById('dashboardContainer');
     
     if (records.length === 0) {
         dashboardContainer.innerHTML = '<p class="placeholder">No records match this filter.</p>';
-        updateChart(0, 0, 0);
-        updateStats(0, 0, 0);
         return;
     }
 
     const cardsHTML = records.map(record => createPatientCard(record)).join('');
     dashboardContainer.innerHTML = cardsHTML;
-    
-    // Calculate statistics
-    const stats = {
-        critical: records.filter(r => r.status === 'CRITICAL').length,
-        moderate: records.filter(r => r.status === 'MODERATE').length,
-        safe: records.filter(r => r.status === 'SAFE').length
-    };
-    
-    // Update chart and stats
-    updateChart(stats.critical, stats.moderate, stats.safe);
-    updateStats(stats.critical, stats.moderate, stats.safe);
-}
-
-// Update Chart.js donut chart for risk distribution
-function updateChart(critical, moderate, safe) {
-    const canvasElement = document.getElementById('riskChart');
-    if (!canvasElement) return;
-
-    const ctx = canvasElement.getContext('2d');
-    
-    // Destroy existing chart if it exists and is valid
-    if (window.riskChart && typeof window.riskChart.destroy === 'function') {
-        window.riskChart.destroy();
-    }
-
-    // Create new chart
-    window.riskChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Critical', 'Moderate', 'Safe'],
-            datasets: [{
-                data: [critical, moderate, safe],
-                backgroundColor: [
-                    'rgba(239, 68, 68, 0.8)',      // Red for Critical
-                    'rgba(245, 158, 11, 0.8)',     // Amber for Moderate
-                    'rgba(16, 185, 129, 0.8)'      // Green for Safe
-                ],
-                borderColor: [
-                    'rgba(239, 68, 68, 1)',
-                    'rgba(245, 158, 11, 1)',
-                    'rgba(16, 185, 129, 1)'
-                ],
-                borderWidth: 2,
-                hoverOffset: 10
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        font: { family: "'Inter', sans-serif", size: 13, weight: '600' },
-                        padding: 16,
-                        color: '#1e293b',
-                        usePointStyle: true,
-                        pointStyle: 'circle'
-                    }
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(30, 41, 59, 0.9)',
-                    titleFont: { size: 14, weight: 'bold' },
-                    bodyFont: { size: 12 },
-                    padding: 12,
-                    borderRadius: 8,
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.parsed || 0;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return `${label}: ${value} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-// Update statistics display
-function updateStats(critical, moderate, safe) {
-    const statCritical = document.getElementById('statCritical');
-    const statModerate = document.getElementById('statModerate');
-    const statSafe = document.getElementById('statSafe');
-    
-    if (statCritical) statCritical.textContent = critical;
-    if (statModerate) statModerate.textContent = moderate;
-    if (statSafe) statSafe.textContent = safe;
 }
 
 // Create individual patient card
@@ -560,3 +497,4 @@ window.addEventListener('beforeunload', () => {
 });
 
 console.log('MedGuard AI Application loaded');
+
