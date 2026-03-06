@@ -1,0 +1,59 @@
+# .gitignore for MedGuard AI
+
+# Environment & API Keys
+.env
+.env.local
+*.key
+*.pem
+
+# Firebase
+firebase-debug.log
+.firebaserc
+.firebase/
+functions/node_modules/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Node modules (if using Firebase CLI)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build & Deployment
+dist/
+build/
+.next/
+
+# Logs
+*.log
+logs/
+
+# Screenshots & Media
+*.png
+*.jpg
+*.jpeg
+screenshots/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# OS files
+.DS_Store
+.Thumbs.db
+
+# IDE configuration
+.eslintcache
+.stylelintcache
+
+# Never commit API keys or credentials
+config-keys.js
+secrets.json

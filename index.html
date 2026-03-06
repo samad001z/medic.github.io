@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedGuard AI – Patient Safety Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Modern Sticky Header -->
+    <header class="modern-header">
+        <div class="header-container">
+            <div class="header-left">
+                <div class="logo">
+                    <span class="logo-icon">🏥</span>
+                    <div class="logo-text">
+                        <h1>MedGuard AI</h1>
+                        <p>Clinical Triage Intelligence</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="header-badge">
+                    <span class="pulse-dot"></span>
+                    <span>SYSTEM ACTIVE</span>
+                </div>
+                <div class="header-avatar">👨‍⚕️</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <!-- Main Content Grid -->
+        <main class="main-grid">
+            <!-- Left: Patient Intake Section -->
+            <section class="glass-card intake-card">
+                <div class="card-header">
+                    <h2>Patient Screening</h2>
+                    <p class="subtitle-small">Enter patient data for AI-powered triage assessment</p>
+                </div>
+                
+                <div class="form-group">
+                    <div class="textarea-wrapper">
+                        <span class="textarea-icon">📋</span>
+                        <textarea 
+                            id="intakeText" 
+                            class="modern-textarea"
+                            placeholder="Paste patient intake record here...
+
+PATIENT ID: PT-001
+Name: John Doe
+Age: 58 | Gender: Male
+Ward: Emergency Department
+Symptoms: Severe chest pain, shortness of breath, dizziness
+Vitals: BP 185/115, HR 105 bpm, SpO2 92%
+Known Allergies: Penicillin, Sulfonamides
+Current Medications: Lisinopril 10mg, Metoprolol 25mg
+Doctor Notes: Patient arrived via ambulance presenting with acute symptoms"
+                        ></textarea>
+                    </div>
+                </div>
+
+                <button id="screenBtn" class="btn btn-gradient">
+                    <span class="btn-icon">⚡</span>
+                    Run AI Screening
+                </button>
+
+                <div id="loadingSpinner" class="loading-spinner hidden">
+                    <div class="spinner"></div>
+                    <p>Processing with AI...</p>
+                </div>
+            </section>
+
+            <!-- Right: Results Section -->
+            <section class="glass-card results-card">
+                <div class="card-header">
+                    <h2>Extracted Results</h2>
+                    <p class="subtitle-small">AI-extracted patient data</p>
+                </div>
+                
+                <div id="resultPanel" class="result-panel">
+                    <p class="placeholder">Results will appear here</p>
+                </div>
+
+                <button id="submitBtn" class="btn btn-success hidden" onclick="submitPatientRecord()">
+                    <span class="btn-icon">✓</span>
+                    Submit to Database
+                </button>
+            </section>
+        </main>
+
+        <!-- Dashboard Section -->
+        <section class="dashboard-wrapper">
+            <div class="dashboard-header">
+                <h2>Live Patient Dashboard</h2>
+                <p class="subtitle-small">Real-time triage monitoring</p>
+            </div>
+
+            <!-- Filter & Search -->
+            <div class="controls-bar">
+                <div class="filter-group">
+                    <button class="filter-btn active" data-filter="all">📊 All Patients</button>
+                    <button class="filter-btn" data-filter="CRITICAL">🔴 Critical</button>
+                    <button class="filter-btn" data-filter="MODERATE">🟡 Moderate</button>
+                    <button class="filter-btn" data-filter="SAFE">🟢 Safe</button>
+                </div>
+            </div>
+
+            <!-- Patient Cards Grid -->
+            <div id="dashboardContainer" class="dashboard-grid">
+                <p class="placeholder">No records yet. Screen a patient to begin.</p>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section class="analytics-section">
+            <div class="glass-card analytics-card">
+                <div class="card-header">
+                    <h2>Risk Distribution</h2>
+                    <p class="subtitle-small">Patient triage breakdown</p>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="riskChart"></canvas>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-item critical">
+                        <span class="stat-label">Critical</span>
+                        <span id="statCritical" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item moderate">
+                        <span class="stat-label">Moderate</span>
+                        <span id="statModerate" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item safe">
+                        <span class="stat-label">Safe</span>
+                        <span id="statSafe" class="stat-value">0</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Firebase + App Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="firebase.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
